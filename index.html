@@ -6,125 +6,99 @@
     <title>Kickball Lineup Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <style>
-        :root {
-            --primary: #2e7d32;
-            --bg: #f4f7f6;
-            --card: #ffffff;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-        }
-        h1 { color: var(--primary); margin-bottom: 10px; }
-        .container {
-            width: 100%;
-            max-width: 500px;
-            background: var(--card);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-        .instruction {
-            font-size: 0.9rem;
-            color: #666;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .player-list { list-style: none; padding: 0; }
-        .player-item {
-            background: #fff;
-            border: 1px solid #ddd;
-            margin-bottom: 8px;
-            padding: 12px;
-            display: flex;
-            align-items: center;
-            border-radius: 8px;
-            cursor: grab;
-            transition: transform 0.2s;
-        }
-        .player-item:active { cursor: grabbing; }
-        .handle {
-            margin-right: 15px;
-            color: #ccc;
-            font-size: 20px;
-            user-select: none;
-        }
-        .order-num {
-            font-weight: bold;
-            width: 30px;
-            color: var(--primary);
-        }
-        input[type="text"] {
-            flex-grow: 1;
-            border: none;
-            border-bottom: 1px solid #eee;
-            margin-right: 10px;
-            padding: 5px;
-            font-size: 1rem;
-        }
-        input[type="text"]:focus {
-            outline: none;
-            border-bottom: 2px solid var(--primary);
-        }
-        select {
-            padding: 5px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-            background: #fafafa;
-        }
+        :root { --primary: #2e7d32; --bg: #f4f7f6; --card: #ffffff; }
+        body { font-family: sans-serif; background-color: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { width: 100%; max-width: 500px; background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; width: 100%; max-width: 500px; }
+        button { flex: 1; padding: 10px; cursor: pointer; border: none; border-radius: 5px; background: var(--primary); color: white; font-weight: bold; }
+        .player-item { background: #fff; border: 1px solid #ddd; margin-bottom: 8px; padding: 12px; display: flex; align-items: center; border-radius: 8px; cursor: grab; }
+        .handle { margin-right: 15px; color: #ccc; cursor: grab; }
+        .order-num { font-weight: bold; width: 30px; color: var(--primary); }
+        input { flex-grow: 1; border: none; border-bottom: 1px solid #eee; margin-right: 10px; padding: 5px; }
+        select { padding: 5px; border-radius: 4px; border: 1px solid #ddd; }
         .ghost { opacity: 0.4; background: #c8ebfb; }
     </style>
 </head>
 <body>
 
     <h1>Kickball Lineup</h1>
-    <p class="instruction">Drag ⠿ to reorder. Change positions via dropdown.</p>
+    
+    <div class="controls">
+        <button onclick="copyShareLink()">🔗 Copy Share Link</button>
+        <button onclick="resetLineup()" style="background:#d32f2f;">Reset</button>
+    </div>
 
     <div class="container">
-        <div id="lineup" class="player-list">
-            </div>
+        <div id="lineup" class="player-list"></div>
     </div>
 
     <script>
-        const positions = [
-            "Pitcher", "Pitcher's Asst", "Catcher", "1st Base", 
-            "2nd Base", "3rd Base", "Shortstop", "Left Field", 
-            "Left Center", "Right Center", "Right Field", "Bench"
-        ];
-
+        const positions = ["Pitcher", "Pitcher's Asst", "Catcher", "1st Base", "2nd Base", "3rd Base", "Shortstop", "Left Field", "Left Center", "Right Center", "Right Field", "Bench"];
         const lineupContainer = document.getElementById('lineup');
 
-        // Create 19 players
-        for (let i = 1; i <= 19; i++) {
-            const playerRow = document.createElement('div');
-            playerRow.className = 'player-item';
-            
-            playerRow.innerHTML = `
+        function createPlayerRow(name = "", pos = "Bench", index) {
+            const div = document.createElement('div');
+            div.className = 'player-item';
+            div.innerHTML = `
                 <div class="handle">⠿</div>
-                <div class="order-num">${i}</div>
-                <input type="text" placeholder="Player Name">
-                <select>
-                    ${positions.map(pos => `<option value="${pos}">${pos}</option>`).join('')}
-                </select>
-            `;
-            lineupContainer.appendChild(playerRow);
+                <div class="order-num">${index}</div>
+                <input type="text" value="${name}" placeholder="Player Name" oninput="saveToLocal()">
+                <select onchange="saveToLocal()">
+                    ${positions.map(p => `<option value="${p}" ${p === pos ? 'selected' : ''}>${p}</option>`).join('')}
+                </select>`;
+            return div;
         }
 
-        // Initialize Sortable
+        function render(data) {
+            lineupContainer.innerHTML = '';
+            data.forEach((p, i) => lineupContainer.appendChild(createPlayerRow(p.n, p.p, i + 1)));
+        }
+
+        function saveToLocal() {
+            const data = Array.from(document.querySelectorAll('.player-item')).map(row => ({
+                n: row.querySelector('input').value,
+                p: row.querySelector('select').value
+            }));
+            localStorage.setItem('kickball_lineup', JSON.stringify(data));
+        }
+
+        function copyShareLink() {
+            const data = Array.from(document.querySelectorAll('.player-item')).map(row => ({
+                n: row.querySelector('input').value,
+                p: row.querySelector('select').value
+            }));
+            const encoded = btoa(encodeURIComponent(JSON.stringify(data)));
+            const url = window.location.origin + window.location.pathname + '?data=' + encoded;
+            navigator.clipboard.writeText(url);
+            alert("Shareable link copied to clipboard!");
+        }
+
+        function resetLineup() {
+            if(confirm("Clear all names?")) {
+                const empty = Array(19).fill({n: '', p: 'Bench'});
+                render(empty);
+                saveToLocal();
+            }
+        }
+
+        // Load Logic
+        const params = new URLSearchParams(window.location.search);
+        const sharedData = params.get('data');
+        const localData = localStorage.getItem('kickball_lineup');
+
+        if (sharedData) {
+            render(JSON.parse(decodeURIComponent(atob(sharedData))));
+        } else if (localData) {
+            render(JSON.parse(localData));
+        } else {
+            render(Array(19).fill({n: '', p: 'Bench'}));
+        }
+
         new Sortable(lineupContainer, {
-            animation: 150,
-            handle: '.handle',
-            ghostClass: 'ghost',
-            onEnd: function() {
-                // Update the visual numbers after drag
-                const rows = document.querySelectorAll('.order-num');
-                rows.forEach((row, index) => {
-                    row.textContent = index + 1;
-                });
+            animation: 150, handle: '.handle', ghostClass: 'ghost',
+            onEnd: () => {
+                document.querySelectorAll('.order-num').forEach((n, i) => n.textContent = i + 1);
+                saveToLocal();
             }
         });
     </script>
