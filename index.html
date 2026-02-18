@@ -133,3 +133,294 @@
             padding: 8px;
             border: 1px solid var(--border);
             border-radius: 4px;
+            background: white;
+        }
+
+        .btn-delete {
+            background: transparent;
+            color: var(--danger);
+            padding: 4px;
+            font-size: 1.2rem;
+        }
+
+        .counter {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        @media (max-width: 600px) {
+            .lineup-header { display: none; }
+            .player-row {
+                grid-template-columns: 40px 1fr 40px;
+                grid-template-areas: 
+                    "handle name delete"
+                    "handle alt1 delete"
+                    "handle alt2 delete";
+                gap: 5px;
+            }
+            .drag-handle { grid-area: handle; }
+            .order-num { display: none; }
+            .player-name { grid-area: name; }
+            .pos-select-1 { grid-area: alt1; }
+            .pos-select-2 { grid-area: alt2; }
+            .btn-delete { grid-area: delete; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Kickball Lineup Manager</h1>
+    
+    <div class="controls">
+        <input type="text" id="newPlayerName" placeholder="Enter player name..." onkeypress="handleEnter(event)">
+        <button class="btn-add" onclick="addPlayer()">+ Add Player</button>
+    </div>
+
+    <div class="counter" id="playerCount">0 / 19 Players</div>
+
+    <div class="lineup-header">
+        <div></div> <div>#</div>
+        <div>Player Name</div>
+        <div>Pos Alt 1</div>
+        <div>Pos Alt 2</div>
+        <div></div> </div>
+
+    <div id="lineupList">
+        </div>
+
+    <button class="btn-share" onclick="saveAndShare()">💾 Save & Get Shareable Link</button>
+</div>
+
+<div id="toast" class="toast">Link copied to clipboard!</div>
+
+<script>
+    // State
+    let players = [];
+    const MAX_PLAYERS = 19;
+
+    // Updated Positions (4 Outfielders)
+    const POSITIONS = [
+        "Pitcher",
+        "Pitcher's Assistant",
+        "Catcher",
+        "1st Base",
+        "2nd Base",
+        "3rd Base",
+        "Shortstop",
+        "Left Field",
+        "Left Center",
+        "Right Center",
+        "Right Field",
+        "Bench"
+    ];
+
+    // Initialize
+    window.onload = () => {
+        loadFromURL();
+        render();
+    };
+
+    function handleEnter(e) {
+        if (e.key === 'Enter') addPlayer();
+    }
+
+    function addPlayer() {
+        const input = document.getElementById('newPlayerName');
+        const name = input.value.trim();
+
+        if (!name) return;
+        if (players.length >= MAX_PLAYERS) {
+            showToast("Team is full (19 players max)");
+            return;
+        }
+
+        players.push({
+            id: Date.now().toString(),
+            name: name,
+            alt1: "",
+            alt2: ""
+        });
+
+        input.value = '';
+        render();
+        updateURL();
+    }
+
+    function deletePlayer(id) {
+        players = players.filter(p => p.id !== id);
+        render();
+        updateURL();
+    }
+
+    function updatePlayerPos(id, field, value) {
+        const player = players.find(p => p.id === id);
+        if (player) {
+            player[field] = value;
+        }
+        updateURL();
+    }
+
+    function generatePositionOptions(selected) {
+        let html = '<option value="">-- Select --</option>';
+        POSITIONS.forEach(pos => {
+            const isSelected = pos === selected ? 'selected' : '';
+            html += `<option value="${pos}" ${isSelected}>${pos}</option>`;
+        });
+        return html;
+    }
+
+    function render() {
+        const list = document.getElementById('lineupList');
+        list.innerHTML = '';
+
+        document.getElementById('playerCount').innerText = `${players.length} / ${MAX_PLAYERS} Players`;
+
+        players.forEach((player, index) => {
+            const row = document.createElement('div');
+            row.className = 'player-row';
+            row.draggable = true;
+            row.dataset.id = player.id;
+            
+            row.innerHTML = `
+                <div class="drag-handle">⋮⋮</div>
+                <div class="order-num">${index + 1}</div>
+                <div class="player-name">${player.name}</div>
+                <div class="pos-select-1">
+                    <select onchange="updatePlayerPos('${player.id}', 'alt1', this.value)">
+                        ${generatePositionOptions(player.alt1)}
+                    </select>
+                </div>
+                <div class="pos-select-2">
+                    <select onchange="updatePlayerPos('${player.id}', 'alt2', this.value)">
+                        ${generatePositionOptions(player.alt2)}
+                    </select>
+                </div>
+                <button class="btn-delete" onclick="deletePlayer('${player.id}')" title="Remove Player">×</button>
+            `;
+
+            row.addEventListener('dragstart', handleDragStart);
+            row.addEventListener('dragover', handleDragOver);
+            row.addEventListener('drop', handleDrop);
+            row.addEventListener('dragend', handleDragEnd);
+
+            list.appendChild(row);
+        });
+    }
+
+    // --- Drag and Drop Logic ---
+    let dragSrcEl = null;
+
+    function handleDragStart(e) {
+        dragSrcEl = this;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/html', this.innerHTML);
+        this.classList.add('dragging');
+    }
+
+    function handleDragOver(e) {
+        if (e.preventDefault) e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        return false;
+    }
+
+    function handleDrop(e) {
+        if (e.stopPropagation) e.stopPropagation();
+
+        const dropTarget = e.target.closest('.player-row');
+        if (dragSrcEl !== dropTarget && dropTarget) {
+            const oldIndex = players.findIndex(p => p.id === dragSrcEl.dataset.id);
+            const newIndex = players.findIndex(p => p.id === dropTarget.dataset.id);
+
+            const [movedItem] = players.splice(oldIndex, 1);
+            players.splice(newIndex, 0, movedItem);
+
+            render();
+            updateURL();
+        }
+        return false;
+    }
+
+    function handleDragEnd() {
+        this.classList.remove('dragging');
+        const rows = document.querySelectorAll('.player-row');
+        rows.forEach(row => row.classList.remove('dragging'));
+    }
+
+    // --- Sharing Logic ---
+    function saveAndShare() {
+        updateURL();
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            showToast("Lineup saved! URL copied to clipboard.");
+        }).catch(() => {
+            showToast("Saved to URL! Manually copy the address bar.");
+        });
+    }
+
+    function updateURL() {
+        const stateString = JSON.stringify(players.map(p => ({
+            n: p.name,
+            a1: p.alt1,
+            a2: p.alt2
+        })));
+        
+        // Base64 encode safe for URLs
+        const encoded = btoa(encodeURIComponent(stateString));
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?data=' + encoded;
+        window.history.replaceState({path: newUrl}, '', newUrl);
+    }
+
+    function loadFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const data = urlParams.get('data');
+
+        if (data) {
+            try {
+                const decoded = decodeURIComponent(atob(data));
+                const simplePlayers = JSON.parse(decoded);
+                
+                players = simplePlayers.map(p => ({
+                    id: Date.now().toString() + Math.random().toString().substr(2, 5),
+                    name: p.n,
+                    alt1: p.a1,
+                    alt2: p.a2
+                }));
+            } catch (e) {
+                console.error("Failed to load lineup from URL", e);
+            }
+        }
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
+    }
+</script>
+
+</body>
+</html>
