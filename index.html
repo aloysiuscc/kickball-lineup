@@ -3,104 +3,340 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kickball Lineup Pro</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <title>Kickball Lineup Manager</title>
     <style>
-        :root { --primary: #2e7d32; --bg: #f4f7f6; --card: #ffffff; }
-        body { font-family: sans-serif; background-color: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { width: 100%; max-width: 500px; background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .controls { margin-bottom: 20px; display: flex; gap: 10px; width: 100%; max-width: 500px; }
-        button { flex: 1; padding: 10px; cursor: pointer; border: none; border-radius: 5px; background: var(--primary); color: white; font-weight: bold; }
-        .player-item { background: #fff; border: 1px solid #ddd; margin-bottom: 8px; padding: 12px; display: flex; align-items: center; border-radius: 8px; cursor: grab; }
-        .handle { margin-right: 15px; color: #ccc; cursor: grab; }
-        .order-num { font-weight: bold; width: 30px; color: var(--primary); }
-        input { flex-grow: 1; border: none; border-bottom: 1px solid #eee; margin-right: 10px; padding: 5px; }
-        select { padding: 5px; border-radius: 4px; border: 1px solid #ddd; }
-        .ghost { opacity: 0.4; background: #c8ebfb; }
+        :root {
+            --primary: #2c7744; /* Grass green */
+            --danger: #d9534f;
+            --light: #f4f4f4;
+            --dark: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e9ecef;
+            margin: 0;
+            padding: 20px;
+            color: var(--dark);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 10px;
+        }
+
+        h1 { margin: 0; color: var(--primary); }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.9; }
+
+        .btn-add { background-color: var(--primary); color: white; }
+        .btn-clear { background-color: var(--danger); color: white; }
+        .btn-print { background-color: #6c757d; color: white; }
+
+        /* Lineup Table/List Styling */
+        .lineup-header {
+            display: grid;
+            grid-template-columns: 40px 40px 2fr 1.5fr 1fr 1fr 40px;
+            gap: 10px;
+            font-weight: bold;
+            padding: 10px;
+            background: #eee;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+
+        #lineup-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .player-row {
+            display: grid;
+            grid-template-columns: 40px 40px 2fr 1.5fr 1fr 1fr 40px;
+            gap: 10px;
+            align-items: center;
+            background: white;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            padding: 8px;
+            border-radius: 4px;
+            transition: box-shadow 0.2s;
+        }
+
+        .player-row.dragging {
+            opacity: 0.5;
+            border: 2px dashed var(--primary);
+        }
+
+        .drag-handle {
+            cursor: grab;
+            color: #999;
+            text-align: center;
+            font-size: 1.2rem;
+            user-select: none;
+        }
+
+        .drag-handle:active { cursor: grabbing; }
+
+        .order-num {
+            font-weight: bold;
+            text-align: center;
+            color: var(--primary);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .btn-delete {
+            background: none;
+            border: none;
+            color: #ccc;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .btn-delete:hover { color: var(--danger); }
+
+        /* Responsive tweaks */
+        @media (max-width: 768px) {
+            .lineup-header, .player-row {
+                grid-template-columns: 30px 20px 1fr 1fr 30px; /* Simplified for mobile */
+            }
+            /* Hide Alts on very small screens or stack them? Hiding for simplicity in this view */
+            .col-alt { display: none; } 
+            
+            /* Add label for mobile if needed, but keeping it simple for now */
+        }
     </style>
 </head>
 <body>
 
-    <h1>Kickball Lineup</h1>
-    
-    <div class="controls">
-        <button onclick="copyShareLink()">🔗 Copy Share Link</button>
-        <button onclick="resetLineup()" style="background:#d32f2f;">Reset</button>
-    </div>
+<div class="container">
+    <header>
+        <h1>Kickball Lineup</h1>
+        <div class="controls">
+            <button class="btn-add" onclick="addPlayer()">+ Add Player</button>
+            <button class="btn-print" onclick="window.print()">Print</button>
+            <button class="btn-clear" onclick="clearLineup()">Clear All</button>
+        </div>
+    </header>
 
-    <div class="container">
-        <div id="lineup" class="player-list"></div>
-    </div>
+    <div class="lineup-header">
+        <div></div> <div>#</div>
+        <div>Player Name</div>
+        <div>Position</div>
+        <div class="col-alt">Alt 1</div>
+        <div class="col-alt">Alt 2</div>
+        <div></div> </div>
 
-    <script>
-        const positions = ["Pitcher", "Pitcher's Asst", "Catcher", "1st Base", "2nd Base", "3rd Base", "Shortstop", "Left Field", "Left Center", "Right Center", "Right Field", "Bench"];
-        const lineupContainer = document.getElementById('lineup');
+    <ul id="lineup-list">
+        </ul>
+</div>
 
-        function createPlayerRow(name = "", pos = "Bench", index) {
-            const div = document.createElement('div');
-            div.className = 'player-item';
-            div.innerHTML = `
-                <div class="handle">⠿</div>
-                <div class="order-num">${index}</div>
-                <input type="text" value="${name}" placeholder="Player Name" oninput="saveToLocal()">
-                <select onchange="saveToLocal()">
-                    ${positions.map(p => `<option value="${p}" ${p === pos ? 'selected' : ''}>${p}</option>`).join('')}
-                </select>`;
-            return div;
-        }
+<script>
+    // --- State Management ---
+    let lineup = [];
+    const positions = [
+        "Pitcher", 
+        "Catcher", 
+        "1st Base", 
+        "2nd Base", 
+        "3rd Base", 
+        "Shortstop", 
+        "Left Field", 
+        "Center Field", 
+        "Right Field", 
+        "Rover",
+        "Pitcher's Assistant", // Requested Feature
+        "Bench"
+    ];
 
-        function render(data) {
-            lineupContainer.innerHTML = '';
-            data.forEach((p, i) => lineupContainer.appendChild(createPlayerRow(p.n, p.p, i + 1)));
-        }
-
-        function saveToLocal() {
-            const data = Array.from(document.querySelectorAll('.player-item')).map(row => ({
-                n: row.querySelector('input').value,
-                p: row.querySelector('select').value
-            }));
-            localStorage.setItem('kickball_lineup', JSON.stringify(data));
-        }
-
-        function copyShareLink() {
-            const data = Array.from(document.querySelectorAll('.player-item')).map(row => ({
-                n: row.querySelector('input').value,
-                p: row.querySelector('select').value
-            }));
-            const encoded = btoa(encodeURIComponent(JSON.stringify(data)));
-            const url = window.location.origin + window.location.pathname + '?data=' + encoded;
-            navigator.clipboard.writeText(url);
-            alert("Shareable link copied to clipboard!");
-        }
-
-        function resetLineup() {
-            if(confirm("Clear all names?")) {
-                const empty = Array(19).fill({n: '', p: 'Bench'});
-                render(empty);
-                saveToLocal();
-            }
-        }
-
-        // Load Logic
-        const params = new URLSearchParams(window.location.search);
-        const sharedData = params.get('data');
-        const localData = localStorage.getItem('kickball_lineup');
-
-        if (sharedData) {
-            render(JSON.parse(decodeURIComponent(atob(sharedData))));
-        } else if (localData) {
-            render(JSON.parse(localData));
+    // --- Initialization ---
+    document.addEventListener('DOMContentLoaded', () => {
+        loadLineup();
+        if (lineup.length === 0) {
+            // Add 10 empty slots by default for a new user
+            for(let i=0; i<10; i++) addPlayer(false);
+            saveLineup();
+            render();
         } else {
-            render(Array(19).fill({n: '', p: 'Bench'}));
+            render();
         }
+    });
 
-        new Sortable(lineupContainer, {
-            animation: 150, handle: '.handle', ghostClass: 'ghost',
-            onEnd: () => {
-                document.querySelectorAll('.order-num').forEach((n, i) => n.textContent = i + 1);
-                saveToLocal();
-            }
+    // --- Core Functions ---
+
+    function addPlayer(shouldRender = true) {
+        lineup.push({
+            id: Date.now() + Math.random(), // Unique ID
+            name: "",
+            position: "Bench",
+            alt1: "",
+            alt2: ""
         });
-    </script>
+        if(shouldRender) {
+            saveLineup();
+            render();
+        }
+    }
+
+    function removePlayer(id) {
+        if(confirm("Remove this player slot?")) {
+            lineup = lineup.filter(p => p.id !== id);
+            saveLineup();
+            render();
+        }
+    }
+
+    function updatePlayer(id, field, value) {
+        const player = lineup.find(p => p.id === id);
+        if (player) {
+            player[field] = value;
+            saveLineup();
+        }
+    }
+
+    function clearLineup() {
+        if(confirm("Are you sure you want to clear the entire lineup?")) {
+            lineup = [];
+            localStorage.removeItem('kickballLineup');
+            render();
+        }
+    }
+
+    // --- Storage ---
+    function saveLineup() {
+        localStorage.setItem('kickballLineup', JSON.stringify(lineup));
+    }
+
+    function loadLineup() {
+        const stored = localStorage.getItem('kickballLineup');
+        if (stored) {
+            try {
+                lineup = JSON.parse(stored);
+            } catch (e) {
+                console.error("Could not load lineup", e);
+                lineup = [];
+            }
+        }
+    }
+
+    // --- Rendering ---
+    function render() {
+        const list = document.getElementById('lineup-list');
+        list.innerHTML = '';
+
+        lineup.forEach((player, index) => {
+            const li = document.createElement('li');
+            li.className = 'player-row';
+            li.setAttribute('draggable', 'true');
+            li.dataset.index = index;
+
+            // Generate Position Options
+            let optionsHtml = positions.map(pos => 
+                `<option value="${pos}" ${player.position === pos ? 'selected' : ''}>${pos}</option>`
+            ).join('');
+
+            li.innerHTML = `
+                <div class="drag-handle">☰</div>
+                <div class="order-num">${index + 1}</div>
+                <div>
+                    <input type="text" placeholder="Name" value="${player.name}" 
+                           oninput="updatePlayer(${player.id}, 'name', this.value)">
+                </div>
+                <div>
+                    <select onchange="updatePlayer(${player.id}, 'position', this.value)">
+                        ${optionsHtml}
+                    </select>
+                </div>
+                <div class="col-alt">
+                    <input type="text" placeholder="Alt 1" value="${player.alt1 || ''}" 
+                           oninput="updatePlayer(${player.id}, 'alt1', this.value)">
+                </div>
+                <div class="col-alt">
+                    <input type="text" placeholder="Alt 2" value="${player.alt2 || ''}" 
+                           oninput="updatePlayer(${player.id}, 'alt2', this.value)">
+                </div>
+                <button class="btn-delete" onclick="removePlayer(${player.id})">&times;</button>
+            `;
+
+            addDragEvents(li);
+            list.appendChild(li);
+        });
+    }
+
+    // --- Drag and Drop Logic ---
+    let dragStartIndex;
+
+    function addDragEvents(item) {
+        item.addEventListener('dragstart', () => {
+            dragStartIndex = +item.getAttribute('data-index');
+            item.classList.add('dragging');
+        });
+
+        item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+        });
+
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Necessary to allow dropping
+        });
+
+        item.addEventListener('drop', () => {
+            const dragEndIndex = +item.getAttribute('data-index');
+            swapItems(dragStartIndex, dragEndIndex);
+        });
+    }
+
+    function swapItems(fromIndex, toIndex) {
+        const itemToMove = lineup[fromIndex];
+        
+        // Remove from old spot
+        lineup.splice(fromIndex, 1);
+        // Insert at new spot
+        lineup.splice(toIndex, 0, itemToMove);
+        
+        saveLineup();
+        render();
+    }
+
+</script>
+
 </body>
 </html>
